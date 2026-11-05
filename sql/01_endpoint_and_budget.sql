@@ -1,0 +1,28 @@
+-- One shared endpoint + one budget with per-group overrides (budget-override model).
+--
+-- ENFORCEMENT = the budget's native BLOCK. All users call ONE governed model service;
+-- ONE budget scopes it, with a default per-user limit plus higher limits ("overrides")
+-- for specific groups. A user's effective ceiling = the highest override group they are
+-- in. "Getting more budget" = being ADDED to the next override group (no removal). A
+-- separate, unbudgeted base endpoint is granted to all users as the never-cut-off floor.
+--
+-- ENDPOINT ACCESS GRANTS (grant USE/EXECUTE on each serving endpoint / model service):
+--   common endpoint (budgeted) -> `account users`   (everyone; the shared tiered endpoint)
+--   base endpoint (unbudgeted)  -> `account users`   (fallback while an approval is pending)
+--
+-- BUDGET (ACCOUNT-LEVEL object; Account Console > Settings > Budgets, or the account
+-- Budgets API - not SQL, and not reachable from a workspace-scoped login):
+--   Budget: <one budget>  -> scope Unity AI Gateway
+--       default per-user threshold ....... $1   (action: block usage)
+--       override group  <power_users> .... $2
+--       override group  <super_users> .... $4
+--   (Thresholds are demo values; they must match tiers.yaml. If a user is in multiple
+--   override groups, the HIGHEST threshold applies.)
+--
+-- FLOW: a call is BLOCKED (HTTP 403 "Budget … reached its limit") at the user's current
+-- ceiling. The kit (real-time via the 403-catch client, or the reconcile backstop) then:
+--   - tier-1 (default) -> auto: ADD the user to the tier-2 override group (ceiling -> $2).
+--   - tier-2           -> steward approval: on approve, ADD to the tier-3 override group.
+--   - tier-3 (top)     -> blocked until the budget window resets.
+-- Membership of these ACCOUNT groups is changed via the ACCOUNT SCIM API (a dedicated
+-- account SP with the group-manager role) - workspace SCIM cannot manage account groups.

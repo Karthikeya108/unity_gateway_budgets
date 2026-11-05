@@ -1,0 +1,59 @@
+# Tiered budget-elevation configuration - copy to tiers.yaml and edit.
+# Budget-override model: ONE shared endpoint + ONE budget with per-group overrides.
+# Elevation = ADD the user to the next override group (highest override applies; no
+# removal). The budget's native block enforces each user's effective ceiling; a base
+# endpoint (unbudgeted, granted to all) is the never-cut-off fallback.
+
+catalog: <catalog>              # UC catalog for the kit's Delta tables (needs managed storage)
+schema:  <schema>               # UC schema for approvals + tier_audit + user_tier
+
+spend:
+  # usage_tokens = per-user token counts (system.ai_gateway.usage) x price_map. REQUIRED for
+  #   Databricks-hosted PPT foundation models - they have NO per-user USD system table.
+  # external_model_spend = per-user USD, but ONLY for EXTERNAL (BYOK) providers.
+  source: usage_tokens
+  window: month_to_date         # month_to_date | rolling_30d
+  price_map:                    # USD per 1M tokens (DBU/1M x your $/DBU); used by the reconcile backstop
+    default:    { input: 8.20, output: 41.00 }
+    "*opus*":   { input: 8.20, output: 41.00 }
+    "*sonnet*": { input: 3.27, output: 16.34 }
+    "*haiku*":  { input: 1.63, output: 8.17 }
+
+budget_tag_key: budget_tier     # unused (single budget); retained for schema compatibility
+stewards_group: <stewards-group>  # account group whose members may approve elevation requests
+
+# All tiers share the ONE endpoint. `group` is the budget OVERRIDE group added to raise
+# the ceiling; tier-1 has no group ("") = the budget's default per-user threshold.
+# `threshold_usd` must match the budget's default/override amounts.
+tiers:
+  - name: tier-1
+    group: ""                                 # default per-user threshold; everyone starts here
+    service: <catalog>.<schema>.<common-model-service>
+    budget_tag: "1"
+    threshold_usd: 1
+    escalation: approval                      # user requests, steward approves -> add to the tier-2 override group
+    notify: steward
+  - name: tier-2
+    group: <tier-2-override-group>
+    service: <catalog>.<schema>.<common-model-service>
+    budget_tag: "2"
+    threshold_usd: 2
+    escalation: approval                      # user requests, steward approves -> add to the tier-3 override group
+    notify: steward
+  - name: tier-3
+    group: <tier-3-override-group>
+    service: <catalog>.<schema>.<common-model-service>
+    budget_tag: "3"
+    threshold_usd: 4
+    escalation: none                          # top tier; stays until the budget resets
+    notify: steward
+
+notify_targets:                 # Slack (optional; degrades to logging without a token)
+  user:
+    type: slack
+    channel_env: SLACK_CHANNEL_USER
+  steward:
+    type: slack
+    channel_env: SLACK_CHANNEL_STEWARD
+
+reconcile_interval_minutes: 15

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local, environment-specific config (holds real catalog/schema/group/service names)
+config/tiers.yaml
+
+# Secrets / credentials (never commit these)
+*.env
+.env
+.env.*
+*secret*.json
+*secret*.yaml
+*.pem
+*.key
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local query output
+view_result.json
+
+# Claude Code local state
+.claude/

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Budget Center</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1b2b34; --muted:#5b6b75; --line:#e4e8eb;
+    --navy:#1b3139; --accent:#ff3621; --ok:#137333; --warn:#b45309; --danger:#a50e0e;
+    --chip:#eef1f4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink)}
+  header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:12px}
+  header .logo{font-weight:700;font-size:17px;letter-spacing:.2px}
+  header .logo b{color:var(--accent)}
+  header .spacer{flex:1}
+  header .who{font-size:13px;opacity:.9}
+  .chip{display:inline-block;background:var(--chip);color:var(--navy);border-radius:999px;
+        padding:3px 10px;font-size:12px;font-weight:600}
+  .chip.steward{background:#e7f0ff;color:#1d4ed8}
+  main{max-width:960px;margin:22px auto;padding:0 18px}
+  .tabs{display:flex;gap:8px;margin-bottom:18px}
+  .tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted)}
+  .tab.active{background:var(--navy);color:#fff}
+  .tab .badge{background:var(--accent);color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:16px;
+        box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .card h3{margin:0 0 14px;font-size:15px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .kpi .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .val{font-size:24px;font-weight:700;margin-top:6px}
+  .bar{height:10px;background:#eceff2;border-radius:999px;overflow:hidden;margin:8px 0 4px}
+  .bar > span{display:block;height:100%;background:var(--ok);transition:width .4s}
+  .bar.warn > span{background:var(--warn)} .bar.over > span{background:var(--danger)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .btn{border:0;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.approve{background:var(--ok);color:#fff} .btn.deny{background:var(--danger);color:#fff}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:var(--chip);color:var(--navy)}
+  .muted{color:var(--muted)} .small{font-size:13px}
+  .banner{border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+  .banner.warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
+  .banner.ok{background:#ecfdf3;border:1px solid #abefc6;color:#087443}
+  .banner.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+  .notif{border-left:3px solid var(--line);padding:8px 12px;margin-bottom:8px;background:#fafbfc;border-radius:0 8px 8px 0}
+  .notif.unread{border-left-color:var(--accent);background:#fff}
+  .notif .t{font-weight:600;font-size:14px} .notif .b{white-space:pre-wrap;font-size:13px;color:var(--muted);margin-top:3px}
+  .notif .when{font-size:11px;color:var(--muted);margin-top:4px}
+  .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .st{font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px}
+  .st.pending{background:#fef9c3;color:#854d0e} .st.approved{background:#dcfce7;color:#166534}
+  .st.denied{background:#fee2e2;color:#991b1b}
+  .reason{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;width:200px}
+  .hidden{display:none}
+  .empty{color:var(--muted);font-style:italic;padding:8px 2px}
+  @media(max-width:640px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">AI <b>Budget</b> Center</div>
+  <div class="spacer"></div>
+  <div class="who"><span id="who">…</span> <span id="roleChip"></span></div>
+  <button class="btn ghost" style="margin-left:12px" onclick="loadAll()">Refresh</button>
+</header>
+
+<main>
+  <div class="tabs">
+    <div class="tab active" id="tab-me" onclick="showTab('me')">My budget</div>
+    <div class="tab hidden" id="tab-approvals" onclick="showTab('approvals')">Approvals <span class="badge hidden" id="apCount"></span></div>
+  </div>
+
+  <!-- MY BUDGET -->
+  <section id="view-me">
+    <div id="banner"></div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="label">Current tier</div><div class="val" id="kTier">-</div></div>
+      <div class="kpi"><div class="label">Spent (MTD)</div><div class="val" id="kSpent">-</div></div>
+      <div class="kpi"><div class="label">Budget ceiling</div><div class="val" id="kCeil">-</div></div>
+      <div class="kpi"><div class="label">Used</div><div class="val" id="kPct">-</div></div>
+    </div>
+
+    <div class="card">
+      <div class="bar" id="bar"><span id="barFill" style="width:0"></span></div>
+      <div class="row" style="justify-content:space-between">
+        <span class="small muted" id="barLabel"></span>
+        <div class="row">
+          <span class="small muted" id="reqStatus"></span>
+          <button class="btn primary" id="reqBtn" onclick="requestElevation()">Request more budget</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Your usage by model (month to date)</h3>
+      <table>
+        <thead><tr><th>Model</th><th class="num">Calls</th><th class="num">Input tokens</th>
+          <th class="num">Output tokens</th><th class="num">Est. spend</th></tr></thead>
+        <tbody id="usageRows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Notifications</h3>
+      <div id="notifs"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Your requests</h3>
+      <table>
+        <thead><tr><th>Requested</th><th>Move</th><th>Status</th><th>Decided by</th></tr></thead>
+        <tbody id="reqRows"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- APPROVALS -->
+  <section id="view-approvals" class="hidden">
+    <div class="card">
+      <h3>Pending elevation requests</h3>
+      <div id="approvals"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt$ = v => "$" + (Number(v)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtN = v => (Number(v)||0).toLocaleString();
+let ME = null;
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  if(!r.ok) throw new Error(path+" -> "+r.status);
+  return r.json();
+}
+
+function showTab(t){
+  $("tab-me").classList.toggle("active", t==="me");
+  $("tab-approvals").classList.toggle("active", t==="approvals");
+  $("view-me").classList.toggle("hidden", t!=="me");
+  $("view-approvals").classList.toggle("hidden", t!=="approvals");
+  if(t==="approvals") loadApprovals();
+}
+
+async function loadMe(){
+  ME = await api("/api/me");
+  $("who").textContent = ME.email;
+  $("roleChip").innerHTML = ME.is_steward ? '<span class="chip steward">Approver</span>' : '<span class="chip">User</span>';
+  $("kTier").textContent = ME.current_tier + " · " + fmt$(ME.ceiling_usd);
+  $("tab-approvals").classList.toggle("hidden", !ME.is_steward);
+
+  // request button state
+  const btn = $("reqBtn"), status = $("reqStatus");
+  if(!ME.can_request){ btn.disabled=true; status.textContent="You're at the top tier."; }
+  else if(ME.has_open_request){ btn.disabled=true; status.textContent="Request pending approval…"; }
+  else { btn.disabled=false; status.textContent = ME.next_tier ? ("Next: "+ME.next_tier+" · "+fmt$(ME.next_ceiling_usd)) : ""; }
+}
+
+async function loadUsage(){
+  const u = await api("/api/usage");
+  const spent = u.total_usd||0, ceil = u.ceiling_usd||1, pct = Math.min(100, Math.round(spent/ceil*100));
+  $("kSpent").textContent = fmt$(spent);
+  $("kCeil").textContent = fmt$(ceil);
+  $("kPct").textContent = pct + "%";
+  const bar = $("bar"); bar.className = "bar" + (spent>=ceil ? " over" : pct>=70 ? " warn" : "");
+  $("barFill").style.width = pct + "%";
+  $("barLabel").textContent = fmt$(spent) + " of " + fmt$(ceil) + " used";
+
+  const rows = (u.models||[]).map(m =>
+    `<tr><td>${esc(m.model)}</td><td class="num">${fmtN(m.calls)}</td><td class="num">${fmtN(m.in_tok)}</td>
+     <td class="num">${fmtN(m.out_tok)}</td><td class="num">${fmt$(m.usd)}</td></tr>`).join("");
+  $("usageRows").innerHTML = rows || '<tr><td colspan="5" class="empty">No usage yet this month.</td></tr>';
+
+  const b = $("banner");
+  if(u.over){ b.className="banner warn";
+    b.innerHTML = `You've reached your <b>${fmt$(ceil)}</b> budget. Request more below and an approver will review it. You can keep working on the base model in the meantime.`; }
+  else if(ME && ME.has_open_request){ b.className="banner info"; b.textContent="Your elevation request is awaiting approval."; }
+  else { b.className=""; b.textContent=""; }
+}
+
+async function loadNotifs(){
+  const ns = await api("/api/notifications");
+  $("notifs").innerHTML = ns.length ? ns.map(n =>
+    `<div class="notif ${n.read?"":"unread"}"><div class="t">${esc(n.title)}</div>
+     <div class="b">${esc(n.body)}</div><div class="when">${esc(n.created_at)}</div></div>`).join("")
+    : '<div class="empty">No notifications.</div>';
+  if(ns.some(n=>!n.read)) fetch("/api/notifications/read",{method:"POST"});
+}
+
+async function loadRequests(){
+  const rs = await api("/api/requests");
+  $("reqRows").innerHTML = rs.length ? rs.map(a =>
+    `<tr><td>${esc(a.from_tier)} → ${esc(a.to_tier)}</td><td>${esc(a.from_tier)} → ${esc(a.to_tier)}</td>
+     <td><span class="st ${a.status}">${a.status}</span></td><td class="muted small">${esc(a.approver||"-")}</td></tr>`).join("")
+    : '<tr><td colspan="4" class="empty">No requests yet.</td></tr>';
+}
+
+async function loadApprovals(){
+  let items=[];
+  try{ items = await api("/api/approvals"); }catch(e){ $("approvals").innerHTML='<div class="empty">Not authorized.</div>'; return; }
+  $("apCount").textContent = items.length; $("apCount").classList.toggle("hidden", !items.length);
+  if(!items.length){ $("approvals").innerHTML='<div class="empty">No pending requests. 🎉</div>'; return; }
+  $("approvals").innerHTML = items.map(a=>{
+    const models = (a.models||[]).slice(0,3).map(m=>`${esc(m.model)} (${fmt$(m.usd)})`).join(", ");
+    return `<div class="card" style="margin:0 0 12px;background:#fbfcfd">
+      <div class="row" style="justify-content:space-between">
+        <div><b>${esc(a.principal)}</b><div class="small muted">wants ${esc(a.from_tier)} → ${esc(a.to_tier)} · MTD ${fmt$(a.spend_usd)}</div>
+          <div class="small muted">${models||"no usage detail"}</div></div>
+        <div class="row">
+          <input class="reason" id="rsn-${a.request_id}" placeholder="reason (optional)">
+          <button class="btn approve" onclick="decide('${a.request_id}','approved')">Approve</button>
+          <button class="btn deny" onclick="decide('${a.request_id}','denied')">Deny</button>
+        </div>
+      </div></div>`;
+  }).join("");
+}
+
+async function requestElevation(){
+  $("reqBtn").disabled=true;
+  try{ await api("/api/request-elevation",{method:"POST"}); }catch(e){}
+  await loadMe(); await loadUsage(); await loadRequests(); await loadNotifs();
+}
+
+async function decide(id, decision){
+  const reason = ($("rsn-"+id)||{}).value || null;
+  await api("/api/approvals/"+id, {method:"POST", headers:{"Content-Type":"application/json"},
+                                   body: JSON.stringify({decision, reason})});
+  await loadApprovals();
+}
+
+function esc(s){ return String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function loadAll(){
+  try{ await loadMe(); }catch(e){ document.body.innerHTML="<main><div class='card'>Not signed in. Open this app from Databricks.</div></main>"; return; }
+  await Promise.all([loadUsage(), loadNotifs(), loadRequests()]);
+  if(ME.is_steward) loadApprovals();
+}
+loadAll();
+setInterval(loadAll, 20000);   // light auto-refresh
+</script>
+</body>
+</html>
