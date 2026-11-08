@@ -133,18 +133,8 @@ amounts.
 TIERS_CONFIG=config/tiers.example.yaml ./.venv/bin/python tests/test_escalation.py
 ```
 
-## Things worth knowing
+## Disclaimer
 
-- **Budgets are near real time, not hard caps.** A small overspend can get through, and requests
-  already running aren't stopped.
-- **Budget tag filters match model-service tags only.** Request tags are useful for reporting but
-  don't affect which budget applies.
-- **Databricks-hosted pay-per-token models have no per-user USD system table.** Spend is derived
-  from token counts in `system.ai_gateway.usage` multiplied by a price map.
-- **Override groups must be account groups.** Unity Catalog grants only recognise account-level
-  principals, so membership is managed through the account SCIM API.
-- **Check each model service with a role before relying on it.** In testing, a service with a
-  guardrail policy, rate limits and an inference table rejected role callers with
-  `400 Invoker principal not found`, while a routing-only service worked.
-- **System tables lag.** `system.ai_gateway.usage` trails by 20 minutes to a few hours, billing
-  by longer. The 403 block is the only real-time signal.
+- The codebase provided is intended to aid in getting started and may not be production-ready. The code does not have any guarantees/warantees/support. Use it at your own risk.
+- This repo contains AI generated elements.
+
