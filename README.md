@@ -96,14 +96,70 @@ flowchart LR
 
 ### Pattern 1: tiered elevation app
 
-```bash
-python -m venv .venv && ./.venv/bin/pip install -r requirements.txt
-cp config/tiers.example.yaml config/tiers.yaml      # fill in catalog, schema, groups, services
-# fill in the placeholders in app.yaml (account id, app URL, secret scope)
+Use an account profile (`<acct-profile>`) and a workspace profile (`<profile>`), both OAuth.
 
-# create the kit's Delta tables (sql/02_approvals_audit.sql), then deploy the app
+**1. Account groups (account console or `databricks account groups create`).** Keep access and
+spend limits in separate groups:
+
+| Group | Purpose | Gets |
+|---|---|---|
+| `<users-group>` | Who may use the kit | Workspace assignment, model access, app access (steps 4 and 7) |
+| `<tier-2-group>`, `<tier-3-group>` | Higher spend limits only | Nothing but a budget override. Not assigned to the workspace, no grants; approvals fill them |
+| `<stewards-group>` | Who may approve | Membership only; the app checks it |
+
+Because tier groups carry no grants, an approval can only raise a spend limit, never widen access.
+
+**2. Model services and tag.** Create a budgeted shared service and an unbudgeted base service
+in `<catalog>.<schema>`, then tag only the shared one (for example `budget_kit_scope=tiered`):
+
+```bash
+databricks api post "/api/2.1/unity-catalog/model-services?parent=schemas/<catalog>.<schema>&model_service_id=<shared-service>" \
+  --json '{"config":{"routing":{"destinations":[{"name":"primary","destination_type":"DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL","traffic_percentage":100,"pay_per_token_config":{"model":"models/system.ai.<model>"}}]}}}' -p <profile>
+databricks api post /api/2.1/unity-catalog/entity-tag-assignments -p <profile> \
+  --json '{"entity_type":"model-services","entity_name":"<catalog>.<schema>.<shared-service>","tag_key":"<tag-key>","tag_value":"<tag-value>"}'
+```
+
+Pick a tag no other budget filters on, and check that the new service has no tags that an
+existing budget already matches.
+
+**3. Budget (account level).** Unity AI Gateway budget filtered on the workspace and the tag:
+a per-user alert with `BLOCK_USAGE` at the tier-1 amount, and `principal_overrides` for the
+tier groups (their account group IDs). A `BLOCK_USAGE` action must not have a `target`.
+
+**4. User access.** Assign `<users-group>` to the workspace with the **User** permission and the
+**Consumer access** entitlement (`workspace-consume`). Grant it `USE CATALOG`, `USE SCHEMA` and
+`EXECUTE` on both services. Onboarding a user is then a single step: add them to `<users-group>`.
+
+**5. Account service principal for group membership.** Create an account SP, give it the
+**Group manager** role on the tier groups only (not account admin), create an OAuth secret,
+and store `account_sp_client_id` and `account_sp_client_secret` in a workspace secret scope.
+
+**6. Tables.** Run `sql/02_approvals_audit.sql` with `{{catalog}}` and `{{schema}}` filled in.
+
+**7. App.** Create the app with a SQL warehouse resource (`CAN_USE`), then grant the app's
+service principal:
+
+| On | Privileges |
+|---|---|
+| `<catalog>` / `<catalog>.<schema>` | `USE CATALOG` / `USE SCHEMA` |
+| The four kit tables | `SELECT`, `MODIFY` |
+| `system` / `system.ai_gateway` / `system.ai_gateway.usage` | `USE CATALOG` / `USE SCHEMA` / `SELECT` |
+| The secret scope | `READ` |
+
+Give `<users-group>` `CAN_USE` on the app. Fill in `config/tiers.yaml` (from
+`config/tiers.example.yaml`) and the placeholders in `app.yaml`, then upload and deploy:
+
+```bash
+databricks workspace import-dir <local-dir> <workspace-path> --overwrite -p <profile>
 databricks apps deploy <app-name> --source-code-path <workspace-path> -p <profile>
 ```
+
+`config/tiers.yaml` is gitignored, and `databricks sync` skips gitignored files, so upload
+with `import-dir` (or the deployed app has no config).
+
+**8. Reconcile job (optional).** A serverless `spark_python_task` running
+`jobs/reconcile_tiers.py` with `--warehouse-id`, `--config`, `--account-id`,
+`--account-secret-scope` and `--account-host`. Create it paused for demos.
 
 Then follow the end-to-end walkthrough in [demo/README.md](demo/README.md).
 
@@ -137,4 +193,3 @@ TIERS_CONFIG=config/tiers.example.yaml ./.venv/bin/python tests/test_escalation.
 
 - The codebase provided is intended to aid in getting started and may not be production-ready. The code does not have any guarantees/warantees/support. Use it at your own risk.
 - This repo contains AI generated elements.
-

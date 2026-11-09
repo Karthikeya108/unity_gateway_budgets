@@ -34,8 +34,15 @@ export P=<your-profile>
 export DATABRICKS_HOST=https://<your-workspace-host>
 export APP_URL=https://<your-app-url>
 export PRINCIPAL=<your-email>
+export COMMON_SERVICE=<catalog>.<schema>.<shared-service>   # budgeted, tagged service
+export BASE_SERVICE=<catalog>.<schema>.<base-service>       # unbudgeted fallback
 export DATABRICKS_TOKEN=$(databricks auth token -p $P | jq -r .access_token)
 ```
+
+Demo users must be in the users group (workspace access with consumer entitlement, `EXECUTE` on
+both services, `CAN_USE` on the app); see the Quick start in the top-level README. The tier groups
+start empty. To start with the block firing, spend just over the tier-1 amount on the shared
+service first (for example `SERVICE=$COMMON_SERVICE python demo/breach_tier.py`).
 
 ## The demo
 
@@ -56,11 +63,13 @@ Refresh the app. A notification appears and the banner shows you are over budget
 
 Step 2. Request elevation: click Request more budget in the user view, or
 `curl -X POST $APP_URL/api/request-elevation -H "Authorization: Bearer $DATABRICKS_TOKEN"`.
+To approve through the API instead of the UI, send `{"decision": "approved"}` to
+`POST $APP_URL/api/approvals/<request-id>`. Any other value is treated as a denial.
 
 Step 3. Approve: as a steward, open the Approvals tab, review the request (it shows MTD spend
 and top models), and click Approve. The user gets an approved notification.
 
-Step 4. Show the ceiling is raised:
+Step 4. Show the ceiling is raised (the new override takes about 30 seconds to apply):
 
 ```bash
 python demo/elevating_client.py "Give me two sentences on Delta Lake."

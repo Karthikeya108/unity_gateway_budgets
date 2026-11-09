@@ -9,6 +9,7 @@ continues. Elevation itself is done by the user in the app, then approved by a s
 (no auto-elevation here).
 
 Env: DATABRICKS_HOST, APP_URL, DATABRICKS_TOKEN, PRINCIPAL
+     COMMON_SERVICE, BASE_SERVICE (optional: model service FQNs; defaults below)
 Usage: python demo/elevating_client.py ["prompt"]
 """
 from __future__ import annotations
@@ -24,8 +25,8 @@ APP = os.environ["APP_URL"].rstrip("/")
 TOKEN = os.environ["DATABRICKS_TOKEN"]
 PRINCIPAL = os.environ["PRINCIPAL"]
 
-COMMON_SVC = "internal_ai_services.shared.common_tier_model_service"
-BASE_SVC = "internal_ai_services.shared.base_model_service"
+COMMON_SVC = os.environ.get("COMMON_SERVICE", "internal_ai_services.shared.common_tier_model_service")
+BASE_SVC = os.environ.get("BASE_SERVICE", "internal_ai_services.shared.base_model_service")
 
 
 def _post(url, payload, timeout=120):
